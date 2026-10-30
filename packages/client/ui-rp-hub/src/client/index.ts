@@ -16,7 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-rp-hub/remote'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { RpStoryDocument, RpStorySummary } from '../types.ts'
+import type { RpStoryDocument, RpStorySummary, RpTurn } from '../types.ts'
 import { RpHubIcon } from './RpHubIcon.tsx'
 import { RpHubPage } from './RpHubPage.tsx'
 import { en, NS, zh } from './locales.ts'
@@ -43,6 +43,14 @@ export interface RpHubInjected {
    * @returns the Host admission with the story document.
    */
   readStory: (id: string) => Promise<RemoteResult<RpStoryDocument>>
+  /**
+   * Append one turn to a story's history.
+   * @param id - story folder name.
+   * @param role - `user` or `response`.
+   * @param text - verbatim turn text.
+   * @returns the Host admission with the appended turn.
+   */
+  appendTurn: (id: string, role: 'user' | 'response', text: string) => Promise<RemoteResult<RpTurn>>
 }
 
 /**
@@ -54,11 +62,16 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   const listStories = (): Promise<RemoteResult<readonly RpStorySummary[]>> => ctx.remote.rpHub.listStories()
   const readStory = (id: string): Promise<RemoteResult<RpStoryDocument>> => ctx.remote.rpHub.readStory(id)
+  const appendTurn = (
+    id: string,
+    role: 'user' | 'response',
+    text: string,
+  ): Promise<RemoteResult<RpTurn>> => ctx.remote.rpHub.appendTurn(id, role, text)
   ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main',
     key: PANEL_ID,
     locale: NS,
-    inject: (): RpHubInjected => ({ listStories, readStory }),
+    inject: (): RpHubInjected => ({ listStories, readStory, appendTurn }),
   }, RpHubPage))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',

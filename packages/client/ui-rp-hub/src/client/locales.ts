@@ -27,6 +27,10 @@ export const en = {
   'reader.turnCount': '{count} turns',
   'reader.user': 'You',
   'reader.response': 'Response',
+  'composer.placeholder': 'Write the next turn… (Ctrl+Enter to add)',
+  'composer.add': 'Add turn',
+  'composer.sending': 'Adding…',
+  'composer.error': 'Could not add the turn.',
 } as const
 
 /** Key domain of the RP Hub namespace. */
@@ -58,4 +62,8 @@ export const zh: Record<RpHubLocaleKey, string> = {
   'reader.turnCount': '{count} 个回合',
   'reader.user': '你',
   'reader.response': '回应',
+  'composer.placeholder': '写下一个回合…（Ctrl+Enter 添加）',
+  'composer.add': '添加回合',
+  'composer.sending': '正在添加…',
+  'composer.error': '无法添加该回合。',
 }

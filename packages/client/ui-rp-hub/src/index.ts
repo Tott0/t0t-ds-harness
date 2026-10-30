@@ -8,8 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { listStories, readStoryDocument } from './storage.ts'
-import type { RpStoryDocument, RpStorySummary } from './types.ts'
+import { appendStoryTurn, listStories, readStoryDocument } from './storage.ts'
+import type { RpStoryDocument, RpStorySummary, RpTurn } from './types.ts'
 
 export type * from './types.ts'
 
@@ -75,6 +75,31 @@ export class RpHubController extends TypertRemoteService {
       throw new RemoteError('rpHub/story-not-found', `story "${id}" has no readable story.json`, { storyId: id })
     }
     return story
+  }
+
+  /**
+   * Append one turn to a story's history and stamp the story's `updatedAt`.
+   * @param id - story folder name under the data directory.
+   * @param role - `user` or `response`.
+   * @param text - verbatim turn text; must not be blank.
+   * @returns the appended turn, id and timestamp included.
+   */
+  @Remote
+  async appendTurn(id: string, role: string, text: string): Promise<RpTurn> {
+    if (!STORY_ID.test(id)) {
+      throw new RemoteError('gateway/bad-request', `invalid story id: ${JSON.stringify(id)}`, {})
+    }
+    if (role !== 'user' && role !== 'response') {
+      throw new RemoteError('gateway/bad-request', `invalid turn role: ${JSON.stringify(role)}`, {})
+    }
+    if (text.trim() === '') {
+      throw new RemoteError('gateway/bad-request', 'turn text must not be blank', {})
+    }
+    const turn = await appendStoryTurn(this.dataDir, id, role, text)
+    if (turn === undefined) {
+      throw new RemoteError('rpHub/story-not-found', `story "${id}" has no readable story.json`, { storyId: id })
+    }
+    return turn
   }
 }
 

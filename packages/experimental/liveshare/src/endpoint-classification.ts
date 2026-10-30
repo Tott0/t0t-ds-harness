@@ -224,6 +224,7 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'subagents/prompt': 'owner-only', // owner subagents
   'rpHub/listStories': 'owner-only', // owner Story index; not exposed to share viewers
   'rpHub/readStory': 'owner-only', // owner Story reader; not exposed to share viewers
+  'rpHub/appendTurn': 'owner-only', // owner Story composer; not exposed to share viewers
 
   // Owner share management stays on the owner's own page; a `share-viewer` Peer is refused first.
   'liveshareShares/audit': 'owner-only',

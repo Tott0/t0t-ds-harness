@@ -7,7 +7,7 @@
  * is skipped so one bad folder cannot blank the whole panel.
  */
 import type { Dirent } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { appendFile, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RpStoryDocument, RpStoryMeta, RpStorySummary, RpTurn } from './types.ts'
 
@@ -146,6 +146,75 @@ async function readTurns(dataDir: string, id: string): Promise<readonly RpTurn[]
       : { id: turnId, role, text: record.text })
   }
   return turns
+}
+
+/**
+ * Append one turn to a story and stamp `story.json`'s `updatedAt`.
+ *
+ * The line append is the durable step; the metadata stamp follows it and is
+ * best-effort (the turn is already safe if the stamp fails). Single-writer for
+ * now: one browser panel composes a story.
+ * @param dataDir - the stories root.
+ * @param id - validated story folder.
+ * @param role - canon turn role.
+ * @param text - verbatim turn text.
+ * @returns the appended turn, or undefined when the folder has no readable metadata.
+ */
+export async function appendStoryTurn(
+  dataDir: string,
+  id: string,
+  role: RpTurn['role'],
+  text: string,
+): Promise<RpTurn | undefined> {
+  if (await readMeta(dataDir, id) === undefined) return undefined
+  const turns = await readTurns(dataDir, id)
+  const turn: RpTurn = {
+    id: nextTurnId(turns),
+    role,
+    text,
+    ts: new Date().toISOString(),
+  }
+  await appendFile(join(dataDir, id, 'turns.jsonl'), `${JSON.stringify(turn)}\n`, 'utf8')
+  await stampUpdatedAt(dataDir, id, turn.ts ?? new Date().toISOString())
+  return turn
+}
+
+/**
+ * Compute the next sequential turn id from the ids already on disk.
+ * @param turns - existing turns.
+ * @returns `t_<n+1>` zero-padded to four digits.
+ */
+function nextTurnId(turns: readonly RpTurn[]): string {
+  let max = 0
+  for (const turn of turns) {
+    const match = /^t_(\d+)$/u.exec(turn.id)
+    if (match?.[1] !== undefined) max = Math.max(max, Number(match[1]))
+  }
+  return `t_${String(max + 1).padStart(4, '0')}`
+}
+
+/**
+ * Rewrite `story.json`'s `updatedAt` while preserving every other field.
+ * @param dataDir - the stories root.
+ * @param id - story folder.
+ * @param iso - timestamp to record.
+ * @returns completion after the atomic replacement.
+ */
+async function stampUpdatedAt(dataDir: string, id: string, iso: string): Promise<void> {
+  const path = join(dataDir, id, 'story.json')
+  const raw = await readText(path)
+  if (raw === undefined) return
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return
+  }
+  if (typeof parsed !== 'object' || parsed === null) return
+  const next = { ...(parsed as Record<string, unknown>), updatedAt: iso }
+  const temporary = `${path}.${process.pid}.${Date.now()}.tmp`
+  await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  await rename(temporary, path)
 }
 
 /**

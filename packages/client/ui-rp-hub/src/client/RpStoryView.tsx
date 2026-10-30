@@ -1,7 +1,9 @@
 /**
  * Story reader: one story's turns, plain blocks, over the Host `readStory`
- * call. No typography ambitions yet — the reader exists so experiment output
- * can be read in-app.
+ * call, plus the composer that appends a user turn through `appendTurn`.
+ *
+ * Rendering is deliberately plain (slice 5): a turn-format overhaul is a
+ * post-MVP item. The composer appends only; generation joins in slice 6.
  */
 import { useEffect, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -13,7 +15,7 @@ import { card, pageTitle, secondaryText, textButton } from './ui.ts'
 /** Props the page passes to the reader. */
 export type RpStoryViewProps =
   PropsLocale<'rpHub'>
-  & Pick<RpHubInjected, 'readStory'>
+  & Pick<RpHubInjected, 'readStory' | 'appendTurn'>
   & {
     readonly storyId: string
     readonly onBack: () => void
@@ -26,16 +28,21 @@ type ReaderState =
   | { readonly status: 'error'; readonly code: string }
 
 /**
- * Render one story's history.
- * @param props - translator, Host read call, story id, and back handler.
- * @returns the reader body (header + turn blocks).
+ * Render one story's history and its composer.
+ * @param props - translator, Host calls, story id, and back handler.
+ * @returns the reader body (header, turn blocks, composer).
  */
-export function RpStoryView({ t, readStory, storyId, onBack }: RpStoryViewProps) {
+export function RpStoryView({ t, readStory, appendTurn, storyId, onBack }: RpStoryViewProps) {
   const [state, setState] = useState<ReaderState>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [appendError, setAppendError] = useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
     setState({ status: 'loading' })
+    setAppendError(null)
     const settle = (result: RemoteResult<RpStoryDocument>): void => {
       if (cancelled) return
       setState(result.ok
@@ -47,6 +54,27 @@ export function RpStoryView({ t, readStory, storyId, onBack }: RpStoryViewProps)
     })
     return () => { cancelled = true }
   }, [readStory, storyId, attempt])
+
+  /**
+   * Append the current draft as a user turn; the returned turn is added to the
+   * local document so the reader does not have to refetch.
+   */
+  const append = (): void => {
+    if (sending || draft.trim() === '') return
+    setSending(true)
+    setAppendError(null)
+    appendTurn(storyId, 'user', draft).then((result) => {
+      if (!result.ok) {
+        setAppendError(result.error.code)
+        return
+      }
+      const turn = result.value
+      setState(current => current.status === 'ready'
+        ? { status: 'ready', story: { ...current.story, turns: [...current.story.turns, turn] } }
+        : current)
+      setDraft('')
+    }, () => { setAppendError('transport') }).finally(() => { setSending(false) })
+  }
 
   return (
     <>
@@ -119,6 +147,52 @@ export function RpStoryView({ t, readStory, storyId, onBack }: RpStoryViewProps)
                   ))}
                 </div>
               )}
+
+          <div style={{ marginTop: 24 }}>
+            <textarea
+              value={draft}
+              onChange={(event) => { setDraft(event.target.value) }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault()
+                  append()
+                }
+              }}
+              placeholder={t('composer.placeholder')}
+              aria-label={t('composer.placeholder')}
+              rows={3}
+              disabled={sending}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                minHeight: 84,
+                resize: 'vertical',
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--dsw-alias-border-l1)',
+                background: 'var(--dsw-alias-bg-layer-1)',
+                color: 'var(--dsw-alias-label-primary)',
+                font: 'inherit',
+                fontSize: 14,
+                lineHeight: '21px',
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={append}
+                disabled={sending || draft.trim() === ''}
+                style={{ ...textButton, opacity: sending || draft.trim() === '' ? 0.5 : 1 }}
+              >
+                {sending ? t('composer.sending') : t('composer.add')}
+              </button>
+              {appendError !== null && (
+                <span style={{ fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' }}>
+                  {t('composer.error')} {appendError}
+                </span>
+              )}
+            </div>
+          </div>
         </>
       )}
     </>
