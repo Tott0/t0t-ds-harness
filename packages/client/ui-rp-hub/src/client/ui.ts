@@ -13,6 +13,35 @@ export const pageShell: CSSProperties = {
   color: 'var(--dsw-alias-label-primary)',
 }
 
+/** Reader shell: fixed-height column holding a scrolling history and a pinned composer. */
+export const readerShell: CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  boxSizing: 'border-box',
+  background: 'var(--dsw-alias-bg-base)',
+  color: 'var(--dsw-alias-label-primary)',
+}
+
+/** Scrolling history region above the composer. */
+export const readerScroll: CSSProperties = {
+  flex: '1 1 auto',
+  minHeight: 0,
+  overflowY: 'auto',
+  paddingTop: 'calc(var(--dsh-frame-top-clearance, 0px) + 24px)',
+  paddingInline: 24,
+  paddingBottom: 24,
+}
+
+/** Pinned composer bar. */
+export const composerBar: CSSProperties = {
+  flex: '0 0 auto',
+  paddingBlock: 12,
+  paddingInline: 24,
+  borderTop: '1px solid var(--dsw-alias-border-l1)',
+  background: 'var(--dsw-alias-bg-layer-1)',
+}
+
 /** Centered reading column. */
 export const column: CSSProperties = { maxWidth: 720, margin: '0 auto' }
 

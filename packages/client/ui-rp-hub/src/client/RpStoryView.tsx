@@ -1,21 +1,23 @@
 /**
- * Story reader: one story's turns, plain blocks, over the Host `readStory`
- * call, plus the composer that appends a user turn through `appendTurn`.
+ * Story reader: a scrolling turn history above a pinned composer. Turns are
+ * plain blocks for now — the formatting overhaul is post-MVP backlog #1.
  *
- * Rendering is deliberately plain (slice 5): a turn-format overhaul is a
- * post-MVP item. The composer appends only; generation joins in slice 6.
+ * The reader loads through `readStory`, appends the draft through `appendTurn`,
+ * and keeps the composer available without scrolling to the end.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { RpStoryDocument } from '../types.ts'
+import type { RpStoryDocument, RpTurn } from '../types.ts'
 import type { RpHubInjected } from './index.ts'
-import { card, pageTitle, secondaryText, textButton } from './ui.ts'
+import {
+  card, column, composerBar, pageTitle, readerScroll, readerShell, secondaryText, textButton,
+} from './ui.ts'
 
 /** Props the page passes to the reader. */
 export type RpStoryViewProps =
   PropsLocale<'rpHub'>
-  & Pick<RpHubInjected, 'readStory' | 'appendTurn'>
+  & Pick<RpHubInjected, 'readStory' | 'appendTurn' | 'generate'>
   & {
     readonly storyId: string
     readonly onBack: () => void
@@ -28,16 +30,18 @@ type ReaderState =
   | { readonly status: 'error'; readonly code: string }
 
 /**
- * Render one story's history and its composer.
+ * Render one story's history and its pinned composer.
  * @param props - translator, Host calls, story id, and back handler.
- * @returns the reader body (header, turn blocks, composer).
+ * @returns the reader shell (scrolling history + composer bar).
  */
-export function RpStoryView({ t, readStory, appendTurn, storyId, onBack }: RpStoryViewProps) {
+export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBack }: RpStoryViewProps) {
   const [state, setState] = useState<ReaderState>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [appendError, setAppendError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const scrollToEnd = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -55,122 +59,153 @@ export function RpStoryView({ t, readStory, appendTurn, storyId, onBack }: RpSto
     return () => { cancelled = true }
   }, [readStory, storyId, attempt])
 
+  // After an append, follow the new turn to the end without moving the view on load.
+  useEffect(() => {
+    if (!scrollToEnd.current) return
+    scrollToEnd.current = false
+    const element = scrollRef.current
+    if (element !== null) element.scrollTop = element.scrollHeight
+  }, [state])
+
   /**
    * Append the current draft as a user turn; the returned turn is added to the
    * local document so the reader does not have to refetch.
    */
-  const append = (): void => {
+  /**
+   * Send the draft: append it as a user turn, then generate and append the
+   * Response. The user turn stays if generation fails, so a retry does not
+   * duplicate it in the composer.
+   */
+  const send = (): void => {
     if (sending || draft.trim() === '') return
     setSending(true)
     setAppendError(null)
-    appendTurn(storyId, 'user', draft).then((result) => {
-      if (!result.ok) {
-        setAppendError(result.error.code)
-        return
-      }
-      const turn = result.value
+    const addTurn = (turn: RpTurn): void => {
       setState(current => current.status === 'ready'
         ? { status: 'ready', story: { ...current.story, turns: [...current.story.turns, turn] } }
         : current)
+    }
+    void appendTurn(storyId, 'user', draft).then(async (appended) => {
+      if (!appended.ok) {
+        setAppendError(appended.error.code)
+        return
+      }
+      scrollToEnd.current = true
+      addTurn(appended.value)
       setDraft('')
-    }, () => { setAppendError('transport') }).finally(() => { setSending(false) })
+      const generated = await generate(storyId)
+      if (!generated.ok) {
+        setAppendError(generated.error.code)
+        return
+      }
+      scrollToEnd.current = true
+      addTurn(generated.value)
+    }).catch(() => { setAppendError('transport') }).finally(() => { setSending(false) })
   }
 
   return (
-    <>
-      <button type="button" onClick={onBack} style={{ ...textButton, marginBottom: 12 }}>
-        ← {t('reader.back')}
-      </button>
-
-      {state.status === 'loading' && (
-        <p style={secondaryText}>{t('reader.loading')}</p>
-      )}
-
-      {state.status === 'error' && (
-        <div style={{ ...card, padding: '20px 20px 16px' }}>
-          <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-state-error-primary)' }}>
-            {t('reader.error')}
-          </p>
-          <p style={{ margin: '4px 0 12px', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-            {state.code}
-          </p>
-          <button type="button" onClick={() => { setAttempt(value => value + 1) }} style={textButton}>
-            {t('index.retry')}
+    <section style={readerShell}>
+      <div ref={scrollRef} style={readerScroll}>
+        <div style={column}>
+          <button type="button" onClick={onBack} style={{ ...textButton, marginBottom: 12 }}>
+            ← {t('reader.back')}
           </button>
+
+          {state.status === 'loading' && (
+            <p style={secondaryText}>{t('reader.loading')}</p>
+          )}
+
+          {state.status === 'error' && (
+            <div style={{ ...card, padding: '20px 20px 16px' }}>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-state-error-primary)' }}>
+                {t('reader.error')}
+              </p>
+              <p style={{ margin: '4px 0 12px', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+                {state.code}
+              </p>
+              <button type="button" onClick={() => { setAttempt(value => value + 1) }} style={textButton}>
+                {t('index.retry')}
+              </button>
+            </div>
+          )}
+
+          {state.status === 'ready' && (
+            <>
+              <header>
+                <h1 style={pageTitle}>{state.story.meta.title}</h1>
+                <p style={secondaryText}>
+                  {state.story.meta.updatedAt === undefined
+                    ? state.story.meta.id
+                    : t('index.updated', { date: state.story.meta.updatedAt.slice(0, 10) })}
+                  {' · '}
+                  {t('reader.turnCount', { count: state.story.turns.length })}
+                </p>
+              </header>
+
+              {state.story.turns.length === 0
+                ? <p style={{ ...secondaryText, marginTop: 24 }}>{t('reader.empty')}</p>
+                : (
+                    <div style={{ display: 'grid', gap: 8, marginTop: 24 }}>
+                      {state.story.turns.map(turn => (
+                        <article key={turn.id} style={{ ...card, padding: '14px 16px' }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              color: turn.role === 'user'
+                                ? 'var(--dsw-alias-brand-primary)'
+                                : 'var(--dsw-alias-label-secondary)',
+                            }}
+                          >
+                            {turn.role === 'user' ? t('reader.user') : t('reader.response')}
+                          </div>
+                          <p
+                            style={{
+                              margin: '6px 0 0',
+                              fontSize: 14,
+                              lineHeight: '22px',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {turn.text}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {state.status === 'ready' && (
-        <>
-          <header>
-            <h1 style={pageTitle}>{state.story.meta.title}</h1>
-            <p style={secondaryText}>
-              {state.story.meta.updatedAt === undefined
-                ? state.story.meta.id
-                : t('index.updated', { date: state.story.meta.updatedAt.slice(0, 10) })}
-              {' · '}
-              {t('reader.turnCount', { count: state.story.turns.length })}
-            </p>
-          </header>
-
-          {state.story.turns.length === 0
-            ? <p style={{ ...secondaryText, marginTop: 24 }}>{t('reader.empty')}</p>
-            : (
-                <div style={{ display: 'grid', gap: 8, marginTop: 24 }}>
-                  {state.story.turns.map(turn => (
-                    <article key={turn.id} style={{ ...card, padding: '14px 16px' }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          letterSpacing: '0.04em',
-                          textTransform: 'uppercase',
-                          color: turn.role === 'user'
-                            ? 'var(--dsw-alias-brand-primary)'
-                            : 'var(--dsw-alias-label-secondary)',
-                        }}
-                      >
-                        {turn.role === 'user' ? t('reader.user') : t('reader.response')}
-                      </div>
-                      <p
-                        style={{
-                          margin: '6px 0 0',
-                          fontSize: 14,
-                          lineHeight: '22px',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {turn.text}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              )}
-
-          <div style={{ marginTop: 24 }}>
+        <div style={composerBar}>
+          <div style={column}>
             <textarea
               value={draft}
               onChange={(event) => { setDraft(event.target.value) }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault()
-                  append()
+                  send()
                 }
               }}
               placeholder={t('composer.placeholder')}
               aria-label={t('composer.placeholder')}
-              rows={3}
+              rows={2}
               disabled={sending}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                minHeight: 84,
+                minHeight: 64,
                 resize: 'vertical',
                 padding: '10px 12px',
                 borderRadius: 10,
                 border: '1px solid var(--dsw-alias-border-l1)',
-                background: 'var(--dsw-alias-bg-layer-1)',
+                background: 'var(--dsw-alias-bg-base)',
                 color: 'var(--dsw-alias-label-primary)',
                 font: 'inherit',
                 fontSize: 14,
@@ -180,11 +215,11 @@ export function RpStoryView({ t, readStory, appendTurn, storyId, onBack }: RpSto
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
               <button
                 type="button"
-                onClick={append}
+                onClick={send}
                 disabled={sending || draft.trim() === ''}
                 style={{ ...textButton, opacity: sending || draft.trim() === '' ? 0.5 : 1 }}
               >
-                {sending ? t('composer.sending') : t('composer.add')}
+                {sending ? t('composer.sending') : t('composer.send')}
               </button>
               {appendError !== null && (
                 <span style={{ fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' }}>
@@ -193,8 +228,8 @@ export function RpStoryView({ t, readStory, appendTurn, storyId, onBack }: RpSto
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
-    </>
+    </section>
   )
 }

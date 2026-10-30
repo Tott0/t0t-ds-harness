@@ -51,6 +51,12 @@ export interface RpHubInjected {
    * @returns the Host admission with the appended turn.
    */
   appendTurn: (id: string, role: 'user' | 'response', text: string) => Promise<RemoteResult<RpTurn>>
+  /**
+   * Generate the next Response for a story and append it.
+   * @param id - story folder name.
+   * @returns the Host admission with the appended Response turn.
+   */
+  generate: (id: string) => Promise<RemoteResult<RpTurn>>
 }
 
 /**
@@ -67,11 +73,12 @@ export function apply(ctx: ClientContext): void {
     role: 'user' | 'response',
     text: string,
   ): Promise<RemoteResult<RpTurn>> => ctx.remote.rpHub.appendTurn(id, role, text)
+  const generate = (id: string): Promise<RemoteResult<RpTurn>> => ctx.remote.rpHub.generate(id)
   ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main',
     key: PANEL_ID,
     locale: NS,
-    inject: (): RpHubInjected => ({ listStories, readStory, appendTurn }),
+    inject: (): RpHubInjected => ({ listStories, readStory, appendTurn, generate }),
   }, RpHubPage))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',

@@ -61,5 +61,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** The requested folder has no readable `story.json`. */
     'rpHub/story-not-found': { readonly storyId: string }
+    /** The model call failed or produced no text; the user turn stays appended. */
+    'rpHub/generation-failed': { readonly storyId: string; readonly reason: string }
   }
 }

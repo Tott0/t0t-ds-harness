@@ -21,22 +21,24 @@ export type RpHubPageProps =
  * @param props - the panel's runtime share and the injected Host calls.
  * @returns the index or the open story.
  */
-export function RpHubPage({ t, listStories, readStory, appendTurn }: RpHubPageProps) {
+export function RpHubPage({ t, listStories, readStory, appendTurn, generate }: RpHubPageProps) {
   const [openId, setOpenId] = useState<string | null>(null)
+  if (openId !== null) {
+    return (
+      <RpStoryView
+        t={t}
+        readStory={readStory}
+        appendTurn={appendTurn}
+        generate={generate}
+        storyId={openId}
+        onBack={() => { setOpenId(null) }}
+      />
+    )
+  }
   return (
     <section style={pageShell}>
       <div style={column}>
-        {openId === null
-          ? <RpStoryIndex t={t} listStories={listStories} onOpen={setOpenId} />
-          : (
-              <RpStoryView
-                t={t}
-                readStory={readStory}
-                appendTurn={appendTurn}
-                storyId={openId}
-                onBack={() => { setOpenId(null) }}
-              />
-            )}
+        <RpStoryIndex t={t} listStories={listStories} onOpen={setOpenId} />
       </div>
     </section>
   )
