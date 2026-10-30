@@ -7,9 +7,9 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { listStories } from './storage.ts'
-import type { RpStorySummary } from './types.ts'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { listStories, readStoryDocument } from './storage.ts'
+import type { RpStoryDocument, RpStorySummary } from './types.ts'
 
 export type * from './types.ts'
 
@@ -29,6 +29,9 @@ export interface Config {
    */
   readonly dataDir: string
 }
+
+/** A story id is one folder segment: no separators, no `.`/`..`. */
+const STORY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u
 
 /** Host service behind the `rpHub` wire namespace. */
 export class RpHubController extends TypertRemoteService {
@@ -55,6 +58,23 @@ export class RpHubController extends TypertRemoteService {
   @Remote
   async listStories(): Promise<readonly RpStorySummary[]> {
     return listStories(this.dataDir)
+  }
+
+  /**
+   * Read one story: metadata, the static system prompt, and its turns.
+   * @param id - story folder name under the data directory.
+   * @returns the story document.
+   */
+  @Remote
+  async readStory(id: string): Promise<RpStoryDocument> {
+    if (!STORY_ID.test(id)) {
+      throw new RemoteError('gateway/bad-request', `invalid story id: ${JSON.stringify(id)}`, {})
+    }
+    const story = await readStoryDocument(this.dataDir, id)
+    if (story === undefined) {
+      throw new RemoteError('rpHub/story-not-found', `story "${id}" has no readable story.json`, { storyId: id })
+    }
+    return story
   }
 }
 

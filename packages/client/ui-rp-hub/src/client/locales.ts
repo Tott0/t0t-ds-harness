@@ -19,6 +19,14 @@ export const en = {
   'index.empty.title': 'No stories yet',
   'index.empty.body': 'Add a folder with a story.json under the data directory, then reopen this panel.',
   'index.updated': 'Updated {date}',
+  'index.open': 'Open {title}',
+  'reader.back': 'All stories',
+  'reader.loading': 'Loading story…',
+  'reader.error': 'Could not load this story.',
+  'reader.empty': 'This story has no turns yet.',
+  'reader.turnCount': '{count} turns',
+  'reader.user': 'You',
+  'reader.response': 'Response',
 } as const
 
 /** Key domain of the RP Hub namespace. */
@@ -42,4 +50,12 @@ export const zh: Record<RpHubLocaleKey, string> = {
   'index.empty.title': '还没有故事',
   'index.empty.body': '在数据目录下添加一个含 story.json 的文件夹，然后重新打开此面板。',
   'index.updated': '更新于 {date}',
+  'index.open': '打开 {title}',
+  'reader.back': '全部故事',
+  'reader.loading': '正在加载故事…',
+  'reader.error': '无法加载此故事。',
+  'reader.empty': '这个故事还没有回合。',
+  'reader.turnCount': '{count} 个回合',
+  'reader.user': '你',
+  'reader.response': '回应',
 }

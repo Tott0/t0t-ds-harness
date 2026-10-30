@@ -8,8 +8,11 @@
   "files": [
     "src/client/index.ts",
     "src/client/RpHubPage.tsx",
+    "src/client/RpStoryIndex.tsx",
+    "src/client/RpStoryView.tsx",
     "src/client/RpHubIcon.tsx",
     "src/client/locales.ts",
+    "src/client/ui.ts",
     "src/types.ts"
   ],
   "references": [
