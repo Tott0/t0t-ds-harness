@@ -401,9 +401,12 @@
 
     # RP Hub: a pinned left-sidebar panel opening a plain story index in the
     # main column. Root-scoped on purpose — it belongs to the profile, not to
-    # a Session. The Host half owns story folders and the `rpHub` Remote.
+    # a Session. The Host half reads story folders under `dataDir`; the path is
+    # deployment policy, kept here rather than in plugin logic.
     - id: ui-rp-hub
       name: '@deepseek-ai/dsh-client-ui-rp-hub'
+      config:
+        dataDir: /bridge/sillytavern/stories
 
     # Goal surface: GoalBar in the input dock over the goal session projection.
     - id: ui-goal

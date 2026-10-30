@@ -134,9 +134,6 @@ export function RpHubPage({ t, listStories }: RpHubPageProps) {
               </ul>
             ))}
 
-        <p style={{ margin: '20px 0 0', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-          {t('index.sample')}
-        </p>
       </div>
     </section>
   )

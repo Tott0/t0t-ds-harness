@@ -1,13 +1,14 @@
 /**
  * RP Hub, node half: the Host owner of the generated `rpHub` Remote namespace.
  *
- * Slice 2 is the data-channel proof: one unary method returning a fixed list,
- * rendered by the panel. Real story folders replace the sample rows in slice 3
- * (`listStories` reads the configured data directory); the storage format and
- * the method surface stay the same, so the client does not change.
+ * `listStories` reads the configured data directory — one folder per story,
+ * `story.json` per folder. The Host half never assembles prompts or calls a
+ * model yet; slices 5–6 add turn append and generation to this same service.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { listStories } from './storage.ts'
 import type { RpStorySummary } from './types.ts'
 
 export type * from './types.ts'
@@ -19,33 +20,41 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/**
- * Temporary rows for the channel proof. Deliberately not read from disk: a
- * failure here can only be the client↔Host wiring, never filesystem access.
- * Slice 3 deletes this constant.
- */
-const SAMPLE_STORIES: readonly RpStorySummary[] = [
-  { id: 'high-school-simulator', title: 'High School Simulator', updatedAt: '2026-10-29T00:00:00.000Z' },
-  { id: 'the-quiet-library', title: 'The Quiet Library', updatedAt: '2026-10-28T00:00:00.000Z' },
-]
+/** Deployment policy for the RP Hub Host half. */
+export interface Config {
+  /**
+   * Absolute directory holding one folder per story. Deployment-owned: the
+   * Web composition sets it (`/bridge/sillytavern/stories` today), so no
+   * bridge path is baked into plugin logic.
+   */
+  readonly dataDir: string
+}
 
 /** Host service behind the `rpHub` wire namespace. */
 export class RpHubController extends TypertRemoteService {
+  static Config: z<Config> = z.object({
+    dataDir: z.string(),
+  })
+
+  private readonly dataDir: string
+
   /**
    * Register the service under the `rpHub` namespace.
    * @param ctx - Host context; the base class registers the Cordis service.
+   * @param config - deployment policy, including the story data directory.
    */
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config: Config) {
     super(ctx, 'rpHubController', { namespace: 'rpHub' })
+    this.dataDir = config.dataDir
   }
 
   /**
-   * List the stories the RP Hub panel shows.
-   * @returns the sample rows until story storage lands.
+   * List the stories found under the configured data directory.
+   * @returns one summary per readable `stories/<id>/story.json`, newest first.
    */
   @Remote
   async listStories(): Promise<readonly RpStorySummary[]> {
-    return SAMPLE_STORIES
+    return listStories(this.dataDir)
   }
 }
 
