@@ -75,10 +75,28 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
     if (element !== null) element.scrollTop = element.scrollHeight
   }, [state])
 
-  /**
-   * Append the current draft as a user turn; the returned turn is added to the
-   * local document so the reader does not have to refetch.
-   */
+  /** Add one turn to the local document without refetching. */
+  const addTurn = (turn: RpTurn): void => {
+    setState(current => current.status === 'ready'
+      ? { status: 'ready', story: { ...current.story, turns: [...current.story.turns, turn] } }
+      : current)
+  }
+
+  /** Request one Response for the current history and append it. */
+  const regenerate = (): void => {
+    if (sending) return
+    setSending(true)
+    setAppendError(null)
+    void generate(storyId).then((generated) => {
+      if (!generated.ok) {
+        setAppendError(failureText(generated.error))
+        return
+      }
+      scrollToEnd.current = true
+      addTurn(generated.value)
+    }).catch(() => { setAppendError('transport') }).finally(() => { setSending(false) })
+  }
+
   /**
    * Send the draft: append it as a user turn, then generate and append the
    * Response. The user turn stays if generation fails, so a retry does not
@@ -88,11 +106,6 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
     if (sending || draft.trim() === '') return
     setSending(true)
     setAppendError(null)
-    const addTurn = (turn: RpTurn): void => {
-      setState(current => current.status === 'ready'
-        ? { status: 'ready', story: { ...current.story, turns: [...current.story.turns, turn] } }
-        : current)
-    }
     void appendTurn(storyId, 'user', draft).then(async (appended) => {
       if (!appended.ok) {
         setAppendError(failureText(appended.error))
@@ -110,6 +123,8 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
       addTurn(generated.value)
     }).catch(() => { setAppendError('transport') }).finally(() => { setSending(false) })
   }
+
+  const lastIsUser = state.status === 'ready' && state.story.turns.at(-1)?.role === 'user'
 
   return (
     <section style={readerShell}>
@@ -229,6 +244,16 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
               >
                 {sending ? t('composer.sending') : t('composer.send')}
               </button>
+              {lastIsUser && (
+                <button
+                  type="button"
+                  onClick={regenerate}
+                  disabled={sending}
+                  style={{ ...textButton, opacity: sending ? 0.5 : 1 }}
+                >
+                  {t('composer.regenerate')}
+                </button>
+              )}
               {appendError !== null && (
                 <span style={{ fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' }}>
                   {t('composer.error')} {appendError}

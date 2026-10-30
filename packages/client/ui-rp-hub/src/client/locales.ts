@@ -31,6 +31,7 @@ export const en = {
   'composer.send': 'Send',
   'composer.sending': 'Generating…',
   'composer.error': 'Could not send the turn.',
+  'composer.regenerate': 'Regenerate response',
 } as const
 
 /** Key domain of the RP Hub namespace. */
@@ -66,4 +67,5 @@ export const zh: Record<RpHubLocaleKey, string> = {
   'composer.send': '发送',
   'composer.sending': '正在生成…',
   'composer.error': '无法发送该回合。',
+  'composer.regenerate': '重新生成回应',
 }
