@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type { GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { traceError, traceOutcome, traceRequest, traceResponse } from './debug-log.ts'
 import { appendStoryTurn, listStories, readStoryDocument } from './storage.ts'
 import type { RpStoryDocument, RpStorySummary, RpTurn } from './types.ts'
 
@@ -182,26 +183,69 @@ export class RpHubController extends TypertRemoteService {
     target: { provider: string; model: string },
   ): Promise<string> {
     const prompt = this.promptOf(story, target)
+    const at = new Date().toISOString()
+    const base = {
+      at,
+      storyId: story.meta.id,
+      provider: target.provider,
+      model: target.model,
+      systemChars: prompt.system.length,
+      messageCount: prompt.messages.length,
+    }
     const options: GenerateOptions = {
       provider: target.provider,
       model: target.model,
       system: prompt.system,
       messages: prompt.messages,
     }
+    await traceRequest({
+      ...base,
+      system: prompt.system,
+      messages: prompt.messages.map(message => ({
+        role: message.role,
+        text: message.content.map(block => block.type === 'text' ? block.text : '').join(''),
+      })),
+    })
     let text = ''
     let failure: { readonly message: string; readonly code: string; readonly status?: number } | undefined
-    for await (const chunk of this.ctx.llm.stream(options)) {
-      if (chunk.type === 'text-delta') text += chunk.text
-      else if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
-        failure = chunk.reason.failure
+    try {
+      for await (const chunk of this.ctx.llm.stream(options)) {
+        if (chunk.type === 'text-delta') text += chunk.text
+        else if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
+          failure = chunk.reason.failure
+        }
       }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      await traceError(`${at}\nstory: ${story.meta.id}\nroute: ${target.provider}/${target.model}\nstream threw\n\n${message}`)
+      await traceOutcome({ ...base, outcome: 'error', error: { code: 'stream-error', message } })
+      throw error
     }
     if (failure !== undefined) {
-      throw new Error(
-        `model call failed (${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}): ${failure.message}`,
+      const detail = `model call failed (${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}): ${failure.message}`
+      await traceError(
+        `${at}\nstory: ${story.meta.id}\nroute: ${target.provider}/${target.model}`
+        + `\ncode: ${failure.code}\nstatus: ${failure.status ?? '-'}\n\n${failure.message}`,
       )
+      await traceOutcome({
+        ...base,
+        outcome: 'error',
+        error: {
+          code: failure.code,
+          message: failure.message,
+          ...failure.status === undefined ? {} : { status: failure.status },
+        },
+      })
+      throw new Error(detail)
     }
-    return text.trim()
+    const reply = text.trim()
+    if (reply === '') {
+      await traceOutcome({ ...base, outcome: 'empty' })
+    } else {
+      await traceResponse(reply)
+      await traceOutcome({ ...base, outcome: 'ok', textChars: reply.length })
+    }
+    return reply
   }
 
   /**
