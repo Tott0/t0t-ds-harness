@@ -82,7 +82,11 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
       : current)
   }
 
-  /** Request one Response for the current history and append it. */
+  /**
+   * Ask the Host for one more Response from the current history and append it.
+   * Always available: it appends from whatever the last turn is, so it doubles
+   * as a retry after a failed generation and as a re-roll after a successful one.
+   */
   const regenerate = (): void => {
     if (sending) return
     setSending(true)
@@ -123,8 +127,6 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
       addTurn(generated.value)
     }).catch(() => { setAppendError('transport') }).finally(() => { setSending(false) })
   }
-
-  const lastIsUser = state.status === 'ready' && state.story.turns.at(-1)?.role === 'user'
 
   return (
     <section style={readerShell}>
@@ -244,16 +246,14 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
               >
                 {sending ? t('composer.sending') : t('composer.send')}
               </button>
-              {lastIsUser && (
-                <button
-                  type="button"
-                  onClick={regenerate}
-                  disabled={sending}
-                  style={{ ...textButton, opacity: sending ? 0.5 : 1 }}
-                >
-                  {t('composer.regenerate')}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={regenerate}
+                disabled={sending}
+                style={{ ...textButton, opacity: sending ? 0.5 : 1 }}
+              >
+                {t('composer.retry')}
+              </button>
               {appendError !== null && (
                 <span style={{ fontSize: 12, color: 'var(--dsw-alias-state-error-primary)' }}>
                   {t('composer.error')} {appendError}
