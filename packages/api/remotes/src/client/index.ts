@@ -29,6 +29,7 @@ import jobRemote from '@deepseek-ai/dsh-api-job-controller/remote'
 import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
 import terminalRemote from '@deepseek-ai/dsh-api-terminal-controller/remote'
 import workspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
+import rpHubRemote from '@deepseek-ai/dsh-client-ui-rp-hub/remote'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
@@ -75,6 +76,7 @@ export type * from '@deepseek-ai/dsh-api-workspace-controller/types'
 export type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 export type * from '@deepseek-ai/dsh-api-workspace-files/types'
 export type {} from '@deepseek-ai/dsh-api-terminal-controller/remote'
+export type {} from '@deepseek-ai/dsh-client-ui-rp-hub/remote'
 export type * from '@deepseek-ai/dsh-api-terminal-controller/types'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
@@ -196,6 +198,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
       fileUploadsRemote, sessionReferencesRemote,
       permissionPresetsRemote, subagentsRemote, sessionRemote, jobRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
       officeToPdfRemote, userQuestionsRemote,
+      rpHubRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

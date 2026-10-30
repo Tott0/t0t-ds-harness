@@ -399,6 +399,12 @@
     - id: ui-schedule
       name: '@deepseek-ai/dsh-client-ui-schedule'
 
+    # RP Hub: a pinned left-sidebar panel opening a plain story index in the
+    # main column. Root-scoped on purpose — it belongs to the profile, not to
+    # a Session. The Host half owns story folders and the `rpHub` Remote.
+    - id: ui-rp-hub
+      name: '@deepseek-ai/dsh-client-ui-rp-hub'
+
     # Goal surface: GoalBar in the input dock over the goal session projection.
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'

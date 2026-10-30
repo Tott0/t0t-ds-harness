@@ -1525,6 +1525,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-plugin-manager':
         specifier: workspace:*
         version: link:../../client/ui-plugin-manager
+      '@deepseek-ai/dsh-client-ui-rp-hub':
+        specifier: workspace:*
+        version: link:../../client/ui-rp-hub
       '@deepseek-ai/dsh-client-ui-trajectory':
         specifier: workspace:*
         version: link:../../client/ui-trajectory
@@ -3062,6 +3065,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: workspace:*
         version: link:../../client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-rp-hub':
+        specifier: workspace:*
+        version: link:../../client/ui-rp-hub
       '@deepseek-ai/dsh-client-ui-schedule':
         specifier: workspace:*
         version: link:../../client/ui-schedule
@@ -5245,6 +5251,43 @@ importers:
       use-sync-external-store:
         specifier: 1.6.0
         version: 1.6.0(react@18.3.1)
+
+  packages/client/ui-rp-hub:
+    dependencies:
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:*
+        version: link:../../typert/protocol
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:*
+        version: link:../../api/remotes
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:*
+        version: link:../locale
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:*
+        version: link:../ui-layout
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:*
+        version: link:../ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:*
+        version: link:../ui-renderer
+      '@deepseek-ai/dsh-client-ui-sidebar':
+        specifier: workspace:*
+        version: link:../ui-sidebar
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:*
+        version: link:../ui-slots
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
 
   packages/client/ui-schedule:
     devDependencies:

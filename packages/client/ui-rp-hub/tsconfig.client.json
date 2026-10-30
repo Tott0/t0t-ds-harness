@@ -1,0 +1,44 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.client.tsbuildinfo"
+  },
+  "files": [
+    "src/client/index.ts",
+    "src/client/RpHubPage.tsx",
+    "src/client/RpHubIcon.tsx",
+    "src/client/locales.ts",
+    "src/types.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../locale/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-layout"
+    },
+    {
+      "path": "../ui-primitives"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-sidebar"
+    },
+    {
+      "path": "../ui-slots"
+    },
+    {
+      "path": "../../typert/protocol"
+    }
+  ]
+}
