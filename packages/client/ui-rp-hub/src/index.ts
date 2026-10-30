@@ -33,6 +33,10 @@ export interface Config {
    * bridge path is baked into plugin logic.
    */
   readonly dataDir: string
+  /** Optional roleplay-only provider route; absent follows the profile default. */
+  readonly provider?: string
+  /** Optional roleplay-only model; absent follows the story's model, then the profile default. */
+  readonly model?: string
 }
 
 /** A story id is one folder segment: no separators, no `.`/`..`. */
@@ -42,12 +46,16 @@ const STORY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u
 export class RpHubController extends TypertRemoteService {
   static Config: z<Config> = z.object({
     dataDir: z.string(),
+    provider: z.string().required(false),
+    model: z.string().required(false),
   })
 
   /** Model-call seam and the profile's configured default route. */
   static inject = ['llm', 'agentDefaultModel']
 
   private readonly dataDir: string
+  private readonly provider: string | undefined
+  private readonly model: string | undefined
 
   /**
    * Register the service under the `rpHub` namespace.
@@ -57,6 +65,8 @@ export class RpHubController extends TypertRemoteService {
   constructor(ctx: Context, config: Config) {
     super(ctx, 'rpHubController', { namespace: 'rpHub' })
     this.dataDir = config.dataDir
+    this.provider = config.provider
+    this.model = config.model
   }
 
   /**
@@ -155,7 +165,10 @@ export class RpHubController extends TypertRemoteService {
    */
   private targetFor(storyModel: string | undefined): { provider: string; model: string } {
     const selection = this.ctx.agentDefaultModel.currentSelection()
-    return { provider: selection.provider, model: storyModel ?? selection.model }
+    return {
+      provider: this.provider ?? selection.provider,
+      model: storyModel ?? this.model ?? selection.model,
+    }
   }
 
   /**
@@ -168,36 +181,52 @@ export class RpHubController extends TypertRemoteService {
     story: RpStoryDocument,
     target: { provider: string; model: string },
   ): Promise<string> {
+    const prompt = this.promptOf(story, target)
     const options: GenerateOptions = {
       provider: target.provider,
       model: target.model,
-      system: story.system,
-      messages: this.history(story, target),
+      system: prompt.system,
+      messages: prompt.messages,
     }
     let text = ''
-    let finish: string | undefined
+    let failure: { readonly message: string; readonly code: string; readonly status?: number } | undefined
     for await (const chunk of this.ctx.llm.stream(options)) {
       if (chunk.type === 'text-delta') text += chunk.text
-      else if (chunk.type === 'finish') finish = chunk.reason.kind
+      else if (chunk.type === 'finish' && (chunk.reason.kind === 'error' || chunk.reason.kind === 'aborted')) {
+        failure = chunk.reason.failure
+      }
     }
-    if (finish === 'error' || finish === 'aborted') {
-      throw new Error(`model call finished with ${finish}`)
+    if (failure !== undefined) {
+      throw new Error(
+        `model call failed (${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}): ${failure.message}`,
+      )
     }
     return text.trim()
   }
 
   /**
-   * Render the stored turns as provider messages: user turns stay user, and
-   * Responses become assistant messages attributed to the current route.
+   * Build the request from the story: the static system prompt (plus the
+   * opening narration, which is scenario setup rather than chat history) and
+   * the then-alternating turn messages.
+   *
+   * Leading Responses are folded into the system prompt on purpose: a history
+   * that starts with an assistant message is rejected by some OpenAI-compatible
+   * routes, and the opening belongs with the setting anyway.
    * @param story - the story document.
    * @param target - resolved provider/model route.
-   * @returns ordered provider messages.
+   * @returns the system text and ordered provider messages.
    */
-  private history(
+  private promptOf(
     story: RpStoryDocument,
     target: { provider: string; model: string },
-  ): Message[] {
-    return story.turns.map(turn => turn.role === 'user'
+  ): { system: string; messages: Message[] } {
+    let first = 0
+    const opening: string[] = []
+    while (story.turns[first]?.role === 'response') {
+      opening.push(story.turns[first]!.text)
+      first++
+    }
+    const messages: Message[] = story.turns.slice(first).map(turn => turn.role === 'user'
       ? {
           role: 'user',
           id: MessageId(`rp-${story.meta.id}-${turn.id}`),
@@ -210,6 +239,18 @@ export class RpHubController extends TypertRemoteService {
           source: { kind: 'model', provider: target.provider, model: target.model },
           content: [{ type: 'text', text: turn.text }],
         })
+    if (messages.length === 0) {
+      messages.push({
+        role: 'user',
+        id: MessageId(`rp-${story.meta.id}-continue`),
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'Continue the story from the opening.' }],
+      })
+    }
+    const system = opening.length === 0
+      ? story.system
+      : `${story.system.trimEnd()}\n\n## Opening\n${opening.join('\n\n')}`
+    return { system, messages }
   }
 }
 

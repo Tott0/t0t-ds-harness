@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { RpStoryDocument, RpTurn } from '../types.ts'
 import type { RpHubInjected } from './index.ts'
 import {
@@ -28,6 +28,14 @@ type ReaderState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly story: RpStoryDocument }
   | { readonly status: 'error'; readonly code: string }
+
+/** Render one Remote failure as code plus a clamped provider message. */
+function failureText(failure: RemoteFailure): string {
+  const message = failure.message.trim()
+  if (message === '') return failure.code
+  const clamped = message.length > 240 ? `${message.slice(0, 240)}…` : message
+  return `${failure.code} — ${clamped}`
+}
 
 /**
  * Render one story's history and its pinned composer.
@@ -87,7 +95,7 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
     }
     void appendTurn(storyId, 'user', draft).then(async (appended) => {
       if (!appended.ok) {
-        setAppendError(appended.error.code)
+        setAppendError(failureText(appended.error))
         return
       }
       scrollToEnd.current = true
@@ -95,7 +103,7 @@ export function RpStoryView({ t, readStory, appendTurn, generate, storyId, onBac
       setDraft('')
       const generated = await generate(storyId)
       if (!generated.ok) {
-        setAppendError(generated.error.code)
+        setAppendError(failureText(generated.error))
         return
       }
       scrollToEnd.current = true
